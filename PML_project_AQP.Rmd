@@ -1,0 +1,217 @@
+---
+title: "PML project - Activity Quality Prediction"
+output: html_document
+---
+### Summary
+
+The present report describes a machine learnig algorithm to predict activity quality from data collected from sensors in portable devices used while performing weight lifting exercises.
+
+### Prerequisites
+
+```{r, echo = TRUE}
+fileDataName1 <- "./pml-training.csv"
+fileDataName2 <- "./pml-testing.csv"
+
+```
+
+
+The **`r fileDataName1`** and **`r fileDataName2`** csv data files should exist in the working directory.
+
+```{r, echo = TRUE}
+if(file.exists(fileDataName1) && file.exists(fileDataName2)){
+  print("training and testing csv data files found, ready to load")
+} else {
+  stop("either training or testing csv data file not found, execution terminated")
+}
+
+```
+
+### Data loading
+
+Data are loaded from the **`r fileDataName1`** and **`r fileDataName2`** files.
+
+```{r, echo = TRUE}
+trainingDataOr <- read.csv(fileDataName1, header = TRUE)
+testingDataOr <- read.csv(fileDataName2, header = TRUE)
+
+```
+
+### Exploratory Data Analysis
+
+Data available are referred to:
+
+  - one weight lift exercise, the "Unilateral Dumbbell Biceps Curl";
+  
+  - six users: adelmo, carlitos, charles, eurico, jeremy, pedro;
+  
+  - four sensor devices: arm, forearm, belt, dumbbell;
+  
+  - five ways the exercise may be performed:
+  
+    - classe = "A" exactly according to the specification;
+    
+    - classe = "B" throwing the elbows to the front;
+    
+    - classe = "C" lifting the dumbbell only halfway;
+    
+    - classe = "D" lowering the dumbbell only halfway;
+    
+    - classe = "E" and throwing the hips to the front.
+
+A look at the downloaded data.
+
+```{r, echo = TRUE}
+
+# users in trainingData and in testingData
+
+usersTraining <- unique(trainingDataOr$user_name)
+usersTesting <- unique(testingDataOr$user_name)
+
+par(mfrow=c(1,2))
+barplot(summary(trainingDataOr$user_name),
+        main="Training Data",
+        xlab="users",
+        ylab="observations",
+        cex.names = 0.7,
+        las =2)
+barplot(summary(testingDataOr$user_name),
+        main="Testing Data",
+        xlab="users",
+        ylab="observations",
+        cex.names = 0.7,
+        las =2)
+
+```
+
+Quality vs. users as classified in training data.
+
+```{r, echo = TRUE}
+
+table(trainingDataOr$user_name,trainingDataOr$classe)
+```
+
+## Partition of the training data
+
+The training data are split in training data (60%) and testing data (40%) for building the model.
+
+```{r, echo = TRUE}
+
+# set seed for reproducibility
+
+set.seed(12345)
+
+# packet caret for createDataPartition
+
+library(caret)
+
+######## only for temporary data reduction ########
+
+# trainingData <- trainingDataOr
+
+inTrainTMP <- createDataPartition(y=trainingDataOr$classe,p=0.5,list=FALSE)
+trainingData <- trainingDataOr[inTrainTMP,]
+
+###################################################
+
+inTrain <- createDataPartition(y=trainingData$classe,p=0.6,list=FALSE)
+
+# training data
+
+training <- trainingData[inTrain,]
+
+# testing data
+
+testing <- trainingData[-inTrain,]
+
+# plot of data partitions
+par(mfrow=c(1,1))
+barplot(c(dim(training)[1],dim(testing)[1]),
+        names.arg = c("training","testing"),
+        main="partition of the training data for cross validation",
+        space = 0.5,
+        xlab="data sets",
+        ylab="observations")
+
+```
+
+### Pre-processing of the training data
+
+A set of features is selected taking into consideration:
+
+  - the physics of the problem;
+  
+  - the quality of the available data;
+  
+  - the CPU time and space constraints.
+
+```{r, echo = TRUE}
+
+# reduction of features
+
+# interesting features are in:
+# ftrSel <- c(2,                    # user name (user_name)
+#             8,9,10,11,            # belt sensor (roll_, pitch_,yaw_, total_accel_)
+#             46,47,48,49,          # arm sensor (roll_, pitch_,yaw_, total_accel_)
+#             84,85,86,102,         # dumbbell sensor (roll_, pitch_,yaw_, total_accel_)
+#             122,123,124,140,      # forearm (roll_, pitch_,yaw_, total_accel_)
+#             160)                  # this is the classe to be predicted (classe)
+
+ftrSel <- c(2,
+            8,9,10,
+            46,47,48,
+            84,85,86,
+            122,123,124,
+            160)
+
+training1 <- training[,ftrSel]
+
+testing1 <- testing[,ftrSel]
+
+```
+
+
+
+###Model creation - Random Tree Forest
+
+A model is created using the R function *train* in the *caret* packet and using the random forest algorithm.
+
+```{r, echo = TRUE}
+
+set.seed(12345)
+
+modFit <- train(classe ~ .,data=training1,method="rf",prox=TRUE)
+
+modFit
+
+```
+
+The model is evaluated against the testing data set.
+
+```{r, echo = TRUE}
+predictions <- predict(modFit,testing1)
+
+table(predictions,testing1$classe)
+
+```
+
+### Model predictions
+
+The testing data in the **`r fileDataName2`** csv file are 
+
+```{r, echo = TRUE}
+
+testingData1 <- testingDataOr[,ftrSel]
+
+tD1_predictions <- predict(modFit,testingData1)
+
+tD1_predictions
+
+```
+
+### References
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3mxrnbWue
+
+
